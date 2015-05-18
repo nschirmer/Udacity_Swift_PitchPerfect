@@ -9,25 +9,35 @@
 import UIKit
 import AVFoundation
 
-class PlaySoundsViewController: UIViewController {
+class PlaySoundsViewController: UIViewController, AVAudioPlayerDelegate {
 
-    var audioPlayer:AVAudioPlayer!
     var receivedAudio:RecordedAudio!
+    
+    var audioEngine:AVAudioEngine!
+    var audioPlayer:AVAudioPlayer!
+//    var audioPlayerNode:AVAudioPlayerNode!
+    var audioBuffer:AVAudioPCMBuffer!
+    
+    var bufferedFiles:Int = 0
+    var wasInterrupted:Bool = false
     
     @IBOutlet weak var stopButton: UIButton!
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        // Do any additional setup after loading the view.
-//        if var filePath = NSBundle.mainBundle().pathForResource("movie_quote", ofType: "mp3") {
-//            var filePathUrl = NSURL.fileURLWithPath(filePath)
-//        } else {
-//            println("the filePath is empty")
-//        }
         
+        // This player will be used for fast / slow where all we need to do is change the rate
         audioPlayer = AVAudioPlayer(contentsOfURL: receivedAudio.filePathUrl, error: nil)
         audioPlayer.enableRate = true
-
+        audioPlayer.delegate = self
+        
+        // An audio engine player will be used for more complex effects
+        audioEngine = AVAudioEngine()
+        
+        // We'll load in the file, and then read it into a buffer
+        var audioFile = AVAudioFile(forReading: receivedAudio.filePathUrl, error: nil)
+        audioBuffer = AVAudioPCMBuffer(PCMFormat: audioFile.processingFormat, frameCapacity: AVAudioFrameCount(audioFile.length))
+        audioFile.readIntoBuffer(audioBuffer, error: nil)
     }
     
     override func viewWillAppear(animated: Bool) {
@@ -35,8 +45,7 @@ class PlaySoundsViewController: UIViewController {
     }
     
     override func viewWillDisappear(animated: Bool) {
-        audioPlayer.stop()
-        stopButton.hidden = true
+        stopAllAudio()
     }
 
     override func didReceiveMemoryWarning() {
@@ -45,38 +54,120 @@ class PlaySoundsViewController: UIViewController {
     }
     
     @IBAction func playSlowAudio(sender: UIButton) {
-        playAudioEffect(0.5)
+        playAudioWithVariableRate(0.5)
     }
 
     @IBAction func playFastAudio(sender: UIButton) {
-        playAudioEffect(1.5)
+        playAudioWithVariableRate(1.5)
     }
     
-    @IBAction func playChipmunkAudio(sender: UIButton) {
+    func playAudioWithVariableRate(rate: Float) {
+        stopAllAudio()
         
-    }
-    
-    @IBAction func stopAudio(sender: UIButton) {
-        audioPlayer.stop()
-        stopButton.hidden = true
-    }
-    
-    func playAudioEffect(rate: Float) {
-        audioPlayer.stop()
         audioPlayer.rate = rate
         audioPlayer.currentTime = 0.0
         audioPlayer.play()
         stopButton.hidden = false
     }
     
-    /*
-    // MARK: - Navigation
-
-    // In a storyboard-based application, you will often want to do a little preparation before navigation
-    override func prepareForSegue(segue: UIStoryboardSegue, sender: AnyObject?) {
-        // Get the new view controller using segue.destinationViewController.
-        // Pass the selected object to the new view controller.
+    @IBAction func playChipmunkAudio(sender: UIButton) {
+        playAudioWithVariablePitch(1000)
     }
-    */
+    
+    @IBAction func playDarthVaderAudio(sender: UIButton) {
+        playAudioWithVariablePitch(-1000)
+    }
+    
+    @IBAction func playEchoAudio(sender: UIButton) {
+        var setEchoEffect = AVAudioUnitDelay()
+        setEchoEffect.delayTime = NSTimeInterval(0.3)
+        
+        playAudioWithNodeEffect(setEchoEffect)
+    }
+    
+    @IBAction func playReverbAudio(sender: UIButton) {
+        var setReverbEffect = AVAudioUnitReverb()
+        setReverbEffect.loadFactoryPreset(AVAudioUnitReverbPreset.Cathedral)
+        setReverbEffect.wetDryMix = 50
+        
+        playAudioWithNodeEffect(setReverbEffect);
+    }
+    
+    
+    func playAudioWithVariablePitch(pitch: Float) {
+        var changePitchEffect = AVAudioUnitTimePitch()
+        changePitchEffect.pitch = pitch
+        
+        playAudioWithNodeEffect(changePitchEffect)
+    }
+    
+    func playAudioWithNodeEffect(effectNode: AVAudioNode) {
+        stopAllAudio()
+        
+        var audioPlayerNode = AVAudioPlayerNode()
+        audioEngine.attachNode(audioPlayerNode)
+
+        audioEngine.attachNode(effectNode)
+        
+        audioEngine.connect(audioPlayerNode, to: effectNode, format: nil)
+        audioEngine.connect(effectNode, to: audioEngine.outputNode, format: nil)
+        
+        // Set the initial state of wasInterrupted, and increase our bufferedFiles
+        wasInterrupted = false
+        bufferedFiles = bufferedFiles + 1
+        
+        // We're using scheduleBuffer instead of scheduleFile since the completionHandler
+        // is more reliable about executing when the file finishes playing
+        audioPlayerNode.scheduleBuffer(audioBuffer, completionHandler: {
+            () -> Void in
+            // We need our completionHandler to execute on the main thread,
+            // since we may be altering the View (by hiding the stop button)
+            dispatch_async(dispatch_get_main_queue(), {
+                // Decrease our buffered files by one, since this file stopped playing
+                if(self.bufferedFiles > 0) {
+                    self.bufferedFiles = self.bufferedFiles - 1
+                } else {
+                    return
+                }
+                
+                // We won't hide the stop button if playback was interrupted, or if
+                // we have a pending bufferedFile
+                if(!self.wasInterrupted && self.bufferedFiles == 0) {
+                    self.hideStopButton()
+                }
+            })
+        })
+        
+        audioEngine.startAndReturnError(nil)
+        
+        audioPlayerNode.play()
+        stopButton.hidden = false
+    }
+    
+    @IBAction func stopAudio(sender: UIButton) {
+        stopAllAudio()
+    }
+    
+    func stopAllAudio() {
+        wasInterrupted = true
+        
+        if(audioPlayer.playing) {
+            audioPlayer.stop()
+        }
+
+        audioEngine.stop()
+        audioEngine.reset()
+        
+        hideStopButton()
+    }
+    
+    // This function is sent from the AVAudioPlayerDelegate
+    func audioPlayerDidFinishPlaying(player: AVAudioPlayer!, successfully flag: Bool) {
+        hideStopButton()
+    }
+    
+    func hideStopButton() {
+        stopButton.hidden = true
+    }
 
 }
