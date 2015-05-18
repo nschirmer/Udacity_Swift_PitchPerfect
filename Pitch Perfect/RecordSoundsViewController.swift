@@ -11,11 +11,13 @@ import AVFoundation
 
 class RecordSoundsViewController: UIViewController, AVAudioRecorderDelegate {
   
+    // Our UI elements
     @IBOutlet weak var recordButton: UIButton!
     @IBOutlet weak var recordingInProgress: UILabel!
     @IBOutlet weak var stopButton: UIButton!
     @IBOutlet weak var pauseButton: UIButton!
     
+    // For creating and storing the recorded audio
     var audioRecorder:AVAudioRecorder!
     var recordedAudio:RecordedAudio!
     
@@ -33,6 +35,7 @@ class RecordSoundsViewController: UIViewController, AVAudioRecorderDelegate {
         resetView()
     }
     
+    // Call this when the UI should reset to its default view (pre-recording)
     func resetView() {
         stopButton.hidden = true
         pauseButton.hidden = true
@@ -59,10 +62,12 @@ class RecordSoundsViewController: UIViewController, AVAudioRecorderDelegate {
         pauseButton.hidden = false
         
         if(pauseButton.enabled == false) {
-            // We paused
+            // The recording is currently paused
             pauseButton.enabled = true
             audioRecorder.record()
         } else {
+            // Start a fresh recording
+            
             // We need to retrieve the directory where we're allowed to store files
             let dirPath = NSSearchPathForDirectoriesInDomains(.DocumentDirectory, .UserDomainMask, true)[0] as! String
             
@@ -88,6 +93,7 @@ class RecordSoundsViewController: UIViewController, AVAudioRecorderDelegate {
     }
     
     @IBAction func stopRecording(sender: UIButton) {
+        // Hide/disable some UI elements so nothing interferes while we wait for the response to be delegated
         stopButton.hidden = true
         recordingInProgress.hidden = true
         pauseButton.hidden = true
@@ -102,10 +108,9 @@ class RecordSoundsViewController: UIViewController, AVAudioRecorderDelegate {
     
     func audioRecorderDidFinishRecording(recorder: AVAudioRecorder!, successfully flag: Bool) {
         if(flag) {
-            //TODO: Step 1 - Save the recorded audio
+            // Store the recorded audio
             recordedAudio = RecordedAudio(filePathUrl: recorder.url, title: recorder.url.lastPathComponent!)
-            
-            //TODO: Step 2 - Move to the next scene aka perform segue
+            // Move on to the next scene
             self.performSegueWithIdentifier("stopRecording", sender: recordedAudio)
         } else {
             println("Recording was not successful")

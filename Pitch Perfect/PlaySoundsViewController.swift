@@ -11,16 +11,20 @@ import AVFoundation
 
 class PlaySoundsViewController: UIViewController, AVAudioPlayerDelegate {
 
+    // Our model
     var receivedAudio:RecordedAudio!
     
+    // Necessary AVFoundation classes
     var audioEngine:AVAudioEngine!
     var audioPlayer:AVAudioPlayer!
-//    var audioPlayerNode:AVAudioPlayerNode!
     var audioBuffer:AVAudioPCMBuffer!
     
+    // Specific to our audioEngine's audioPlayerNode
+    // A way for us to know if we should hide the stopButton when the player node completes
     var bufferedFiles:Int = 0
     var wasInterrupted:Bool = false
     
+    // Only UI element we need an outlet to
     @IBOutlet weak var stopButton: UIButton!
     
     override func viewDidLoad() {
@@ -64,6 +68,7 @@ class PlaySoundsViewController: UIViewController, AVAudioPlayerDelegate {
     func playAudioWithVariableRate(rate: Float) {
         stopAllAudio()
         
+        // Set the variable rate, restart the audio, and play it
         audioPlayer.rate = rate
         audioPlayer.currentTime = 0.0
         audioPlayer.play()
@@ -93,7 +98,6 @@ class PlaySoundsViewController: UIViewController, AVAudioPlayerDelegate {
         playAudioWithNodeEffect(setReverbEffect);
     }
     
-    
     func playAudioWithVariablePitch(pitch: Float) {
         var changePitchEffect = AVAudioUnitTimePitch()
         changePitchEffect.pitch = pitch
@@ -101,6 +105,8 @@ class PlaySoundsViewController: UIViewController, AVAudioPlayerDelegate {
         playAudioWithNodeEffect(changePitchEffect)
     }
     
+    // Main function that all of our node-effect functions can pass through
+    // Binds the effect node to the engine, creates the player node, and plays the buffer
     func playAudioWithNodeEffect(effectNode: AVAudioNode) {
         stopAllAudio()
         
